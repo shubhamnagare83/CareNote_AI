@@ -161,7 +161,9 @@ EXCERPTS:
 
 QUESTION: {question}"""
 
-    gemini_model = genai.GenerativeModel("gemini-2.0-flash")
+    from backend.extract import gemini_model_name
+
+    gemini_model = genai.GenerativeModel(gemini_model_name())
 
     last_error = None
     for attempt in range(2):
@@ -173,3 +175,112 @@ QUESTION: {question}"""
             continue
 
     return f"Excerpts retrieved from transcript:\n{excerpts}"
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# LIVE / INCREMENTAL INDEXING
+# ══════════════════════════════════════════════════════════════════════════
+#
+# `build_index` above returns early when the collection already has rows,
+# which is the right behaviour for a finished recording but wrong for a live
+# one: the transcript keeps growing, and the doctor may want to ask the
+# copilot a question halfway through. `append_turns` adds only the new turns,
+# so the index stays queryable throughout the consultation without ever
+# re-embedding text it has already seen.
+
+def _collection_name(session_id: str) -> str:
+    """ChromaDB collection name for a session (3-63 chars, alnum + underscore)."""
+    return f"session_{session_id[:50]}"
+
+
+def append_turns(
+    session_id: str,
+    turns: list[dict],
+    start_index: int,
+) -> int:
+    """
+    Embed and add new transcript turns to a session's live index.
+
+    Args:
+        session_id:  Session whose collection to extend.
+        turns:       New turns only, each with keys speaker/text (start/end optional).
+        start_index: Global index of `turns[0]` within the full transcript.
+                     Used to build stable ids so a retried call overwrites
+                     rather than duplicates.
+
+    Returns:
+        Number of turns actually indexed (turns with empty text are skipped).
+    """
+    if not turns:
+        return 0
+
+    documents, ids, metadatas = [], [], []
+    for offset, seg in enumerate(turns):
+        text = (seg.get("text") or "").strip()
+        if not text:
+            continue
+        speaker = seg.get("speaker", "UNKNOWN")
+        documents.append(f"[{speaker}]: {text}")
+        ids.append(f"turn_{start_index + offset}")
+        metadatas.append({
+            "speaker": speaker,
+            "start": float(seg.get("start", 0.0) or 0.0),
+            "end": float(seg.get("end", 0.0) or 0.0),
+        })
+
+    if not documents:
+        return 0
+
+    model = _get_embedding_model()
+    client = _get_chroma_client()
+    collection = client.get_or_create_collection(
+        name=_collection_name(session_id),
+        metadata={"hnsw:space": "cosine"},
+    )
+
+    embeddings = model.encode(documents, show_progress_bar=False).tolist()
+
+    # upsert (not add) so a duplicate flush is idempotent rather than fatal.
+    collection.upsert(
+        ids=ids,
+        documents=documents,
+        embeddings=embeddings,
+        metadatas=metadatas,
+    )
+    return len(documents)
+
+
+def has_index(session_id: str) -> bool:
+    """True when a session already has a populated collection."""
+    try:
+        collection = _get_chroma_client().get_collection(name=_collection_name(session_id))
+        return collection.count() > 0
+    except Exception:
+        return False
+
+
+def drop_index(session_id: str) -> None:
+    """
+    Delete a session's collection.
+
+    The Chroma client is in-memory, so collections live for the lifetime of
+    the process. Long-running servers need this to avoid accumulating one
+    collection per consultation.
+    """
+    try:
+        _get_chroma_client().delete_collection(name=_collection_name(session_id))
+    except Exception:
+        pass
+
+
+def preload_embedding_model() -> None:
+    """
+    Load the sentence-transformer at startup.
+
+    First-call load of all-MiniLM-L6-v2 takes a few seconds; doing it eagerly
+    keeps the first live copilot question fast.
+    """
+    try:
+        _get_embedding_model()
+    except Exception as e:  # pragma: no cover - depends on local weights
+        print(f"[rag] Could not preload embedding model: {e}")

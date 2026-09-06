@@ -130,6 +130,451 @@
 </head>
 <body class="text-slate-800 font-sans antialiased">
 
+<!-- ╔══════════════════════════════════════════════════════════════════════╗ -->
+<!-- ║          CINEMATIC SPLASH SCREEN — CareNote AI Grand Intro         ║ -->
+<!-- ╚══════════════════════════════════════════════════════════════════════╝ -->
+<div id="splashOverlay" style="position:fixed;inset:0;z-index:99999;pointer-events:all;">
+  <!-- Background canvas for particles -->
+  <canvas id="splashCanvas" style="position:absolute;inset:0;width:100%;height:100%;"></canvas>
+
+  <!-- Dark gradient backdrop -->
+  <div id="splashBg" style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 50%, #0a0e27 0%, #020617 60%, #000000 100%);transition:opacity 0.8s ease;"></div>
+
+  <!-- Vignette -->
+  <div style="position:absolute;inset:0;background:radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.6) 100%);pointer-events:none;"></div>
+
+  <!-- EKG heartbeat SVG line -->
+  <svg id="ekgLine" viewBox="0 0 1200 120" preserveAspectRatio="none" style="position:absolute;top:50%;left:0;width:100%;height:120px;transform:translateY(-50%);opacity:0;z-index:2;">
+    <defs>
+      <linearGradient id="ekgGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="rgba(99,102,241,0)"/>
+        <stop offset="30%" stop-color="rgba(99,102,241,0.8)"/>
+        <stop offset="50%" stop-color="#22d3ee"/>
+        <stop offset="70%" stop-color="rgba(99,102,241,0.8)"/>
+        <stop offset="100%" stop-color="rgba(99,102,241,0)"/>
+      </linearGradient>
+      <filter id="ekgGlow">
+        <feGaussianBlur stdDeviation="3" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    <path id="ekgPath" d="M0,60 L200,60 L240,60 L260,20 L280,100 L300,10 L320,90 L340,60 L380,60 L600,60 L640,60 L660,25 L680,95 L700,15 L720,85 L740,60 L780,60 L1000,60 L1040,60 L1060,30 L1080,90 L1100,20 L1120,80 L1140,60 L1200,60"
+          fill="none" stroke="url(#ekgGrad)" stroke-width="2.5" filter="url(#ekgGlow)"
+          stroke-dasharray="2400" stroke-dashoffset="2400">
+      <animate attributeName="stroke-dashoffset" from="2400" to="0" dur="2s" begin="0.3s" fill="freeze" calcMode="spline" keySplines="0.4 0 0.2 1"/>
+    </path>
+    <!-- Glowing dot that traces the EKG -->
+    <circle r="5" fill="#22d3ee" filter="url(#ekgGlow)" opacity="0.9">
+      <animateMotion dur="2s" begin="0.3s" fill="freeze" calcMode="spline" keySplines="0.4 0 0.2 1">
+        <mpath href="#ekgPath"/>
+      </animateMotion>
+    </circle>
+  </svg>
+
+  <!-- Central content -->
+  <div id="splashContent" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:5;">
+
+    <!-- Shockwave ring -->
+    <div id="shockwave" style="position:absolute;width:0;height:0;border-radius:50%;border:2px solid rgba(99,102,241,0.6);opacity:0;pointer-events:none;"></div>
+
+    <!-- Logo icon -->
+    <div id="splashIcon" style="width:90px;height:90px;border-radius:22px;background:linear-gradient(135deg,#4f46e5,#6366f1,#818cf8);display:flex;align-items:center;justify-content:center;font-size:44px;color:white;opacity:0;transform:scale(0.3) rotate(-180deg);box-shadow:0 0 0 0 rgba(99,102,241,0);margin-bottom:28px;">
+      ⚡
+    </div>
+
+    <!-- Title -->
+    <div id="splashTitle" style="opacity:0;transform:translateY(30px);">
+      <h1 style="font-family:'Inter',sans-serif;font-size:52px;font-weight:900;letter-spacing:-2px;margin:0;">
+        <span style="background:linear-gradient(135deg,#c7d2fe 0%,#ffffff 40%,#22d3ee 70%,#a5b4fc 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">CareNote</span>
+        <span style="background:linear-gradient(135deg,#818cf8,#6366f1,#4f46e5);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;font-family:'JetBrains Mono',monospace;font-size:28px;vertical-align:super;margin-left:6px;">AI</span>
+      </h1>
+    </div>
+
+    <!-- Tagline with typing effect -->
+    <div id="splashTagline" style="opacity:0;margin-top:14px;">
+      <p style="font-family:'JetBrains Mono',monospace;font-size:14px;color:rgba(148,163,184,0.9);letter-spacing:3px;text-transform:uppercase;">
+        <span id="typeTarget"></span><span id="typeCursor" style="color:#6366f1;animation:blink 0.7s step-end infinite;">│</span>
+      </p>
+    </div>
+
+    <!-- Subtitle -->
+    <div id="splashSub" style="opacity:0;transform:translateY(15px);margin-top:32px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="width:40px;height:1px;background:linear-gradient(90deg,transparent,#4f46e5);"></span>
+        <p style="font-family:'Inter',sans-serif;font-size:12px;color:rgba(148,163,184,0.6);letter-spacing:5px;text-transform:uppercase;font-weight:600;">Ambient AI Clinical Scribe</p>
+        <span style="width:40px;height:1px;background:linear-gradient(90deg,#4f46e5,transparent);"></span>
+      </div>
+    </div>
+
+    <!-- Loading bar -->
+    <div id="splashLoader" style="opacity:0;margin-top:40px;width:200px;">
+      <div style="height:2px;background:rgba(99,102,241,0.15);border-radius:99px;overflow:hidden;">
+        <div id="splashProgress" style="height:100%;width:0%;background:linear-gradient(90deg,#4f46e5,#22d3ee,#4f46e5);background-size:200% 100%;border-radius:99px;animation:shimmer 1.5s linear infinite;"></div>
+      </div>
+      <p id="splashLoadText" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(100,116,139,0.6);text-align:center;margin-top:8px;letter-spacing:2px;">INITIALIZING</p>
+    </div>
+
+    <!-- Sound hint indicator if autoplay requires interaction -->
+    <div id="splashSoundPrompt" style="position:absolute;bottom:28px;display:flex;align-items:center;gap:8px;padding:8px 18px;border-radius:999px;background:rgba(15,23,42,0.85);border:1px solid rgba(99,102,241,0.4);backdrop-filter:blur(8px);color:rgba(226,232,240,0.9);font-size:12px;font-family:'Inter',sans-serif;letter-spacing:1px;cursor:pointer;opacity:0;transition:opacity 0.4s ease, transform 0.4s ease;transform:translateY(10px);z-index:20;box-shadow:0 0 20px rgba(99,102,241,0.25);">
+      <span style="font-size:14px;animation:float 1.5s infinite;">🔊</span>
+      <span>Click anywhere for voice audio</span>
+    </div>
+
+  </div>
+</div>
+
+<style>
+  /* Splash-specific keyframes */
+  @keyframes blink { 50% { opacity: 0; } }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+  /* Hide main app behind splash initially */
+  #mainAppContainer { opacity: 0; }
+  #mainAppContainer.revealed { opacity: 1; transition: opacity 0.6s ease 0.1s; }
+
+  /* Splash exit animation */
+  #splashOverlay.exiting {
+    animation: splashExit 1s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+  }
+  @keyframes splashExit {
+    0% { clip-path: circle(150% at 50% 50%); opacity: 1; }
+    70% { clip-path: circle(5% at 50% 50%); opacity: 1; }
+    100% { clip-path: circle(0% at 50% 50%); opacity: 0; }
+  }
+</style>
+
+<script>
+(function() {
+  // ── PARTICLE CANVAS ──────────────────────────────────────────────────
+  const canvas = document.getElementById('splashCanvas');
+  const ctx = canvas.getContext('2d');
+  let W, H, particles = [], animRunning = true;
+
+  function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // Particle types: dots, crosses, tiny rings, DNA spirals
+  class Particle {
+    constructor() {
+      this.reset();
+    }
+    reset() {
+      this.x = Math.random() * W;
+      this.y = Math.random() * H;
+      this.size = Math.random() * 3 + 1;
+      this.speedX = (Math.random() - 0.5) * 0.4;
+      this.speedY = (Math.random() - 0.5) * 0.3 - 0.15;
+      this.opacity = Math.random() * 0.4 + 0.05;
+      this.type = Math.random();
+      this.angle = Math.random() * Math.PI * 2;
+      this.spin = (Math.random() - 0.5) * 0.02;
+      this.hue = Math.random() > 0.6 ? 220 : (Math.random() > 0.5 ? 180 : 260);
+      this.pulsePhase = Math.random() * Math.PI * 2;
+    }
+    update(t) {
+      this.x += this.speedX;
+      this.y += this.speedY;
+      this.angle += this.spin;
+      this.pulsePhase += 0.02;
+      const pulse = 0.5 + 0.5 * Math.sin(this.pulsePhase);
+      this.currentOpacity = this.opacity * (0.6 + 0.4 * pulse);
+      if (this.x < -20 || this.x > W + 20 || this.y < -20 || this.y > H + 20) this.reset();
+    }
+    draw() {
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.rotate(this.angle);
+      ctx.globalAlpha = this.currentOpacity;
+
+      if (this.type < 0.3) {
+        // Glowing dot
+        ctx.beginPath();
+        ctx.arc(0, 0, this.size, 0, Math.PI * 2);
+        ctx.fillStyle = `hsla(${this.hue}, 80%, 70%, 1)`;
+        ctx.shadowColor = `hsla(${this.hue}, 80%, 60%, 0.8)`;
+        ctx.shadowBlur = 8;
+        ctx.fill();
+      } else if (this.type < 0.5) {
+        // Medical cross
+        const s = this.size * 1.5;
+        ctx.strokeStyle = `hsla(${this.hue}, 60%, 65%, 1)`;
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(-s, 0); ctx.lineTo(s, 0); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, -s); ctx.lineTo(0, s); ctx.stroke();
+      } else if (this.type < 0.7) {
+        // Tiny ring
+        ctx.beginPath();
+        ctx.arc(0, 0, this.size * 2, 0, Math.PI * 2);
+        ctx.strokeStyle = `hsla(${this.hue}, 70%, 60%, 0.7)`;
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      } else {
+        // Double helix segment
+        const s = this.size * 3;
+        ctx.strokeStyle = `hsla(${this.hue}, 70%, 65%, 0.6)`;
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        for (let i = -s; i <= s; i += 1) {
+          const wave = Math.sin(i * 0.3 + this.angle) * 3;
+          if (i === -s) ctx.moveTo(i, wave); else ctx.lineTo(i, wave);
+        }
+        ctx.stroke();
+        ctx.beginPath();
+        for (let i = -s; i <= s; i += 1) {
+          const wave = Math.sin(i * 0.3 + this.angle + Math.PI) * 3;
+          if (i === -s) ctx.moveTo(i, wave); else ctx.lineTo(i, wave);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+
+  // Spawn particles
+  const particleCount = Math.min(120, Math.floor(W * H / 12000));
+  for (let i = 0; i < particleCount; i++) particles.push(new Particle());
+
+  // Floating connection lines
+  function drawConnections() {
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const dx = particles[i].x - particles[j].x;
+        const dy = particles[i].y - particles[j].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 100) {
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.strokeStyle = `rgba(99, 102, 241, ${0.06 * (1 - dist / 100)})`;
+          ctx.lineWidth = 0.5;
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  let frame = 0;
+  function animateParticles() {
+    if (!animRunning) return;
+    ctx.clearRect(0, 0, W, H);
+    frame++;
+    particles.forEach(p => { p.update(frame); p.draw(); });
+    drawConnections();
+    requestAnimationFrame(animateParticles);
+  }
+  animateParticles();
+
+  // ── ANIMATION TIMELINE ───────────────────────────────────────────────
+  const ekg = document.getElementById('ekgLine');
+  const icon = document.getElementById('splashIcon');
+  const title = document.getElementById('splashTitle');
+  const tagline = document.getElementById('splashTagline');
+  const sub = document.getElementById('splashSub');
+  const loader = document.getElementById('splashLoader');
+  const progress = document.getElementById('splashProgress');
+  const loadText = document.getElementById('splashLoadText');
+  const shockwave = document.getElementById('shockwave');
+
+  function animate(el, styles, duration, easing) {
+    return new Promise(resolve => {
+      el.style.transition = `all ${duration}ms ${easing || 'cubic-bezier(0.16, 1, 0.3, 1)'}`;
+      requestAnimationFrame(() => {
+        Object.assign(el.style, styles);
+        setTimeout(resolve, duration);
+      });
+    });
+  }
+
+  // Typewriter effect
+  function typeText(text, speed) {
+    return new Promise(resolve => {
+      const target = document.getElementById('typeTarget');
+      let i = 0;
+      const interval = setInterval(() => {
+        target.textContent += text[i];
+        i++;
+        if (i >= text.length) { clearInterval(interval); resolve(); }
+      }, speed);
+    });
+  }
+
+  // Shockwave burst
+  function fireShockwave() {
+    const sw = shockwave;
+    sw.style.transition = 'none';
+    sw.style.width = '0'; sw.style.height = '0'; sw.style.opacity = '0.7';
+    sw.style.top = '50%'; sw.style.left = '50%';
+    sw.style.transform = 'translate(-50%, -50%)';
+    requestAnimationFrame(() => {
+      sw.style.transition = 'all 1.2s cubic-bezier(0.16, 1, 0.3, 1)';
+      sw.style.width = '800px'; sw.style.height = '800px'; sw.style.opacity = '0';
+    });
+  }
+
+  // ── CINEMATIC AUDIO & VOICE WELCOME ──────────────────────────────────
+  // Pre-generated neural TTS audio: deep, commanding Indian-English male voice
+  // "Welcome to CareNote AI ... Future AI in Healthcare"
+  const welcomeAudio = new Audio('/welcome.mp3');
+  welcomeAudio.preload = 'auto';
+  welcomeAudio.volume = 1.0;
+
+  const soundPrompt = document.getElementById('splashSoundPrompt');
+  let audioPlayed = false;
+  let hasTriggeredSpeech = false;
+
+  // Cinematic sub-bass rumble via Web Audio API for goosebump physical impact
+  function playCinematicBoom() {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      if (ctx.state === 'suspended') ctx.resume();
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(95, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(28, ctx.currentTime + 0.9);
+
+      gain.gain.setValueAtTime(0.35, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.1);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 1.1);
+    } catch(e) {}
+  }
+
+  function playVoiceAudio() {
+    if (audioPlayed) return;
+    welcomeAudio.currentTime = 0;
+    const playPromise = welcomeAudio.play();
+    if (playPromise !== undefined) {
+      playPromise.then(() => {
+        audioPlayed = true;
+        playCinematicBoom();
+        if (soundPrompt) {
+          soundPrompt.style.opacity = '0';
+          soundPrompt.style.transform = 'translateY(10px)';
+          setTimeout(() => { soundPrompt.style.display = 'none'; }, 400);
+        }
+      }).catch(err => {
+        console.warn('[CareNote Splash] Autoplay waiting for interaction:', err);
+        if (soundPrompt && hasTriggeredSpeech) {
+          soundPrompt.style.opacity = '1';
+          soundPrompt.style.transform = 'translateY(0)';
+        }
+      });
+    }
+  }
+
+  function unlockAndPlay() {
+    if (audioPlayed) return;
+    playVoiceAudio();
+  }
+
+  // Click or touch anywhere on splash screen unlocks & plays audio
+  document.getElementById('splashOverlay').addEventListener('click', unlockAndPlay);
+  document.addEventListener('keydown', unlockAndPlay, { once: true });
+  document.addEventListener('pointerdown', unlockAndPlay, { once: true });
+  if (soundPrompt) {
+    soundPrompt.addEventListener('click', (e) => {
+      e.stopPropagation();
+      unlockAndPlay();
+    });
+  }
+
+  function speakWelcome() {
+    hasTriggeredSpeech = true;
+    playVoiceAudio();
+  }
+
+  // Loading text sequence
+  const loadSteps = [
+    'LOADING NEURAL MODELS',
+    'CALIBRATING SPEECH ENGINE',
+    'WARMING AI PIPELINE',
+    'PREPARING CLINICAL WORKSPACE',
+    'READY'
+  ];
+
+  async function runSplash() {
+    await new Promise(r => setTimeout(r, 300));
+
+    // 1. EKG heartbeat sweeps across
+    await animate(ekg, { opacity: '1' }, 400);
+    await new Promise(r => setTimeout(r, 1800));
+
+    // 2. Icon materializes with shockwave
+    fireShockwave();
+
+    // 🔊 SPEAK the welcome announcement as the logo lands
+    speakWelcome();
+
+    await animate(icon, {
+      opacity: '1',
+      transform: 'scale(1) rotate(0deg)',
+      boxShadow: '0 0 60px rgba(99,102,241,0.5), 0 0 120px rgba(99,102,241,0.2)'
+    }, 800);
+
+    // Icon breathing glow
+    icon.style.animation = 'float 3s ease-in-out infinite';
+
+    // 3. Fade EKG out
+    animate(ekg, { opacity: '0.15' }, 600);
+
+    // 4. Title flies in
+    await animate(title, { opacity: '1', transform: 'translateY(0)' }, 700);
+    await new Promise(r => setTimeout(r, 200));
+
+    // 5. Tagline types out
+    await animate(tagline, { opacity: '1' }, 300);
+    await typeText('The Future of Clinical Documentation', 45);
+    await new Promise(r => setTimeout(r, 300));
+
+    // 6. Subtitle and loader fade in
+    animate(sub, { opacity: '1', transform: 'translateY(0)' }, 600);
+    await animate(loader, { opacity: '1' }, 500);
+
+    // 7. Progress bar fills while cycling status text
+    for (let i = 0; i < loadSteps.length; i++) {
+      loadText.textContent = loadSteps[i];
+      const pct = ((i + 1) / loadSteps.length) * 100;
+      progress.style.transition = 'width 0.6s cubic-bezier(0.4, 0, 0.2, 1)';
+      progress.style.width = pct + '%';
+      await new Promise(r => setTimeout(r, 500));
+    }
+
+    await new Promise(r => setTimeout(r, 400));
+
+    // 8. Second shockwave before exit
+    fireShockwave();
+    await new Promise(r => setTimeout(r, 300));
+
+    // 9. EXIT — iris close + reveal app
+    const overlay = document.getElementById('splashOverlay');
+    document.getElementById('mainAppContainer').classList.add('revealed');
+    overlay.classList.add('exiting');
+    animRunning = false;
+
+    setTimeout(() => {
+      overlay.remove();
+    }, 1100);
+  }
+
+  // Start the splash sequence
+  if (document.readyState === 'complete') runSplash();
+  else window.addEventListener('load', runSplash);
+})();
+</script>
+
+<div id="mainAppContainer">
 <div class="flex min-h-screen">
     <!-- ═══ COLLAPSIBLE SIDEBAR ═══ -->
     <aside id="sidebar" class="sidebar w-64 bg-white/90 backdrop-blur-md border-r border-slate-200/80 flex flex-col justify-between fixed top-0 left-0 bottom-0 z-30 transition-all no-print">
@@ -2026,5 +2471,6 @@ loadDashboard();
 loadSettingsStatus();
 </script>
 
+</div><!-- end mainAppContainer -->
 </body>
 </html>

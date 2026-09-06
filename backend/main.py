@@ -1154,6 +1154,15 @@ async def serve_index():
         return FileResponse(_INDEX_PATH)
     return {"status": "ok", "service": "CareNote AI Clinical Scribe"}
 
+# Serve welcome audio for the splash screen
+_WELCOME_PATH = os.path.join(_FRONTEND_DIR, "welcome.mp3")
+
+@app.get("/welcome.mp3")
+async def serve_welcome_audio():
+    if os.path.exists(_WELCOME_PATH):
+        return FileResponse(_WELCOME_PATH, media_type="audio/mpeg")
+    raise HTTPException(status_code=404, detail="Welcome audio not found")
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "CareNote AI Clinical Scribe"}

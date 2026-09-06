@@ -1,0 +1,40 @@
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+
+# Databases & local storage
+*.db
+*.sqlite
+*.sqlite3
+carenote.db
+chroma_data/
+
+# Audio uploads & samples (keep folder structure via .gitkeep)
+sample_audio/*
+!sample_audio/.gitkeep
+temp_audio/
+uploads/
+
+# IDE, Editor & OS artifacts
+.uix/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log

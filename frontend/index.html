@@ -1,0 +1,1768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="CareNote AI — Advanced Ambient AI Clinical Scribe for real-time doctor-patient consultations.">
+    <title>CareNote AI — Advanced Clinical Scribe</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe',
+                            300: '#a5b4fc', 400: '#818cf8', 500: '#6366f1',
+                            600: '#4f46e5', 700: '#4338ca', 800: '#3730a3',
+                            900: '#312e81', 950: '#1e1b4b',
+                        },
+                        clinical: {
+                            blue: '#0284c7',
+                            teal: '#0d9488',
+                            emerald: '#059669',
+                            amber: '#d97706',
+                            rose: '#e11d48',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #eff6ff 100%);
+            min-height: 100vh;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.25); border-radius: 99px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(99,102,241,0.45); }
+
+        /* Animations */
+        @keyframes fadeInUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+        @keyframes pulse-glow { 0%,100% { box-shadow:0 0 15px rgba(99,102,241,0.08); } 50% { box-shadow:0 0 30px rgba(99,102,241,0.20); } }
+        @keyframes soundWave { 0%, 100% { height: 6px; } 50% { height: 32px; } }
+        @keyframes recording-pulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:.4; transform:scale(1.25); } }
+
+        .anim-fade-up { animation: fadeInUp .35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .anim-fade { animation: fadeIn .3s ease-out forwards; }
+        .anim-glow { animation: pulse-glow 3s ease-in-out infinite; }
+        .recording-dot { animation: recording-pulse 1.2s ease-in-out infinite; }
+
+        /* Glass design tokens */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(226, 232, 240, 0.9);
+            box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
+        }
+        .glass-card:hover {
+            box-shadow: 0 10px 25px -3px rgba(99, 102, 241, 0.08);
+            border-color: rgba(99, 102, 241, 0.25);
+        }
+
+        /* Sidebar styles */
+        .sidebar { transition: width .28s cubic-bezier(.4,0,.2,1); }
+        .sidebar-item { transition: all .18s ease; }
+        .sidebar-item:hover { background: rgba(99, 102, 241, 0.08); }
+        .sidebar-item.active {
+            background: linear-gradient(135deg, rgba(99,102,241,0.12), rgba(99,102,241,0.06));
+            color: #4f46e5;
+            font-weight: 600;
+        }
+
+        /* Speech bubbles */
+        .bubble-doctor {
+            background: linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 100%);
+            border-left: 4px solid #0284c7;
+        }
+        .bubble-patient {
+            background: linear-gradient(135deg, #fdf4ff 0%, #fae8ff 100%);
+            border-left: 4px solid #a855f7;
+        }
+        .bubble-live {
+            background: #ffffff;
+            border-left: 4px solid #6366f1;
+            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.08);
+        }
+
+        /* SOAP sections */
+        .soap-s { border-left: 4px solid #3b82f6; background: #eff6ff; }
+        .soap-o { border-left: 4px solid #0d9488; background: #f0fdfa; }
+        .soap-a { border-left: 4px solid #e11d48; background: #fff1f2; }
+        .soap-p { border-left: 4px solid #059669; background: #ecfdf5; }
+
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            body { background: #fff !important; }
+        }
+    </style>
+</head>
+<body class="text-slate-800 font-sans antialiased">
+
+<div class="flex min-h-screen">
+    <!-- ═══ COLLAPSIBLE SIDEBAR ═══ -->
+    <aside id="sidebar" class="sidebar w-64 bg-white/90 backdrop-blur-md border-r border-slate-200/80 flex flex-col justify-between fixed top-0 left-0 bottom-0 z-30 transition-all no-print">
+        <div>
+            <!-- Brand Logo -->
+            <div class="p-5 flex items-center justify-between border-b border-slate-100">
+                <div class="flex items-center gap-3 overflow-hidden">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center text-white font-bold text-xl shadow-md shadow-brand-500/20 flex-shrink-0">
+                        ⚡
+                    </div>
+                    <div id="brandText" class="whitespace-nowrap transition-opacity">
+                        <h1 class="font-extrabold text-base tracking-tight text-slate-900 flex items-center gap-1.5">
+                            CareNote <span class="text-brand-600 font-mono text-xs bg-brand-50 px-1.5 py-0.5 rounded border border-brand-200">AI PRO</span>
+                        </h1>
+                        <p class="text-[11px] text-slate-400 font-medium">Ambient Scribe 2.0</p>
+                    </div>
+                </div>
+                <button id="sidebarToggleBtn" onclick="toggleSidebar()" class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
+                </button>
+            </div>
+
+            <!-- Navigation Links -->
+            <nav class="p-3 space-y-1">
+                <a href="#dashboard" onclick="navigate('dashboard')" class="sidebar-item active flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm text-slate-600 hover:text-brand-600 transition-colors">
+                    <span class="text-lg">📊</span>
+                    <span class="nav-label">Dashboard</span>
+                </a>
+                <a href="#consultation" onclick="navigate('consultation')" class="sidebar-item flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm text-slate-600 hover:text-brand-600 transition-colors">
+                    <span class="text-lg">🎙️</span>
+                    <span class="nav-label font-semibold text-brand-600">Live AI Scribe</span>
+                    <span class="ml-auto text-[10px] bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.5 rounded-full nav-label">Fast</span>
+                </a>
+                <a href="#patients" onclick="navigate('patients')" class="sidebar-item flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm text-slate-600 hover:text-brand-600 transition-colors">
+                    <span class="text-lg">👥</span>
+                    <span class="nav-label">Patients (CRUD)</span>
+                </a>
+                <a href="#history" onclick="navigate('history')" class="sidebar-item flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm text-slate-600 hover:text-brand-600 transition-colors">
+                    <span class="text-lg">📋</span>
+                    <span class="nav-label">Past Consultations</span>
+                </a>
+                <a href="#analytics" onclick="navigate('analytics')" class="sidebar-item flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm text-slate-600 hover:text-brand-600 transition-colors">
+                    <span class="text-lg">📈</span>
+                    <span class="nav-label">Practice Analytics</span>
+                </a>
+                <a href="#settings" onclick="navigate('settings')" class="sidebar-item flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm text-slate-600 hover:text-brand-600 transition-colors">
+                    <span class="text-lg">⚙️</span>
+                    <span class="nav-label">Settings & Speed</span>
+                </a>
+            </nav>
+        </div>
+
+        <!-- Sidebar Footer -->
+        <div class="p-3 border-t border-slate-100">
+            <div class="p-3 rounded-xl bg-gradient-to-br from-brand-50 to-indigo-50/60 border border-brand-100/80 text-xs">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span class="font-bold text-slate-700">Ultra-Fast Engine</span>
+                </div>
+                <p class="text-[11px] text-slate-500">Gemini 2.0 Flash (~2s Notes)</p>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ═══ MAIN CONTENT WRAPPER ═══ -->
+    <div id="mainWrapper" class="flex-1 ml-64 flex flex-col min-h-screen transition-all">
+        <!-- Topbar -->
+        <header class="h-16 bg-white/80 backdrop-blur-md border-b border-slate-200/80 px-8 flex items-center justify-between sticky top-0 z-20 no-print">
+            <div class="flex items-center gap-4">
+                <h2 id="pageTitle" class="text-lg font-bold text-slate-900">Clinical Dashboard</h2>
+                <div class="flex items-center gap-2 px-2.5 py-1 bg-slate-100 rounded-lg text-xs text-slate-600">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span>Server: <strong class="text-slate-800">Online</strong></span>
+                </div>
+                <!-- Real-time Decibel / Voice Activity Indicator -->
+                <div id="vadIndicator" class="hidden items-center gap-2 px-3 py-1 bg-white border border-slate-200 rounded-lg text-xs font-mono">
+                    <span id="vadDot" class="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
+                    <span id="vadText" class="text-slate-500">Mic Idle</span>
+                    <div class="w-16 h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div id="vadBar" class="h-full bg-emerald-500 w-0 transition-all duration-75"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <button onclick="navigate('consultation')" class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-brand-600 to-indigo-600 text-white font-semibold text-xs rounded-xl shadow-md shadow-brand-500/20 hover:from-brand-700 hover:to-indigo-700 transition-all">
+                    <span>🎙️</span> New Consultation
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Inner Area -->
+        <main class="flex-1 p-8 max-w-7xl w-full mx-auto">
+
+            <!-- ═══════════════════════════════════════════════════════════════ -->
+            <!-- 1. DASHBOARD PAGE -->
+            <!-- ═══════════════════════════════════════════════════════════════ -->
+            <section id="page-dashboard" class="page-content anim-fade-up">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+                    <!-- Stat 1 -->
+                    <div class="glass-card rounded-2xl p-5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Patients</span>
+                            <span class="text-xl">👥</span>
+                        </div>
+                        <p id="statPatients" class="text-3xl font-extrabold text-slate-900 mt-2">0</p>
+                        <p class="text-xs text-slate-400 mt-1">Registered in database</p>
+                    </div>
+                    <!-- Stat 2 -->
+                    <div class="glass-card rounded-2xl p-5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Consultations</span>
+                            <span class="text-xl">📋</span>
+                        </div>
+                        <p id="statConsultations" class="text-3xl font-extrabold text-slate-900 mt-2">0</p>
+                        <p class="text-xs text-slate-400 mt-1">Processed encounters</p>
+                    </div>
+                    <!-- Stat 3 -->
+                    <div class="glass-card rounded-2xl p-5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">SOAP Notes</span>
+                            <span class="text-xl">🏥</span>
+                        </div>
+                        <p id="statNotes" class="text-3xl font-extrabold text-emerald-600 mt-2">0</p>
+                        <p class="text-xs text-slate-400 mt-1">EHR documentation complete</p>
+                    </div>
+                    <!-- Stat 4 -->
+                    <div class="glass-card rounded-2xl p-5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Avg AI Note Speed</span>
+                            <span class="text-xl">⚡</span>
+                        </div>
+                        <p class="text-3xl font-extrabold text-brand-600 mt-2">~2.1s</p>
+                        <p class="text-xs text-emerald-600 font-semibold mt-1">10x Speed Optimized</p>
+                    </div>
+                </div>
+
+                <!-- Fast Actions & Recent Activity -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Fast Action Card -->
+                    <div class="glass-card rounded-2xl p-6 lg:col-span-1">
+                        <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4">Quick Scribe Launcher</h3>
+                        <p class="text-xs text-slate-500 mb-5 leading-relaxed">
+                            Start live ambient transcription with speech activity detection. Speaks Hindi, English, or mixed Hinglish.
+                        </p>
+                        <button onclick="navigate('consultation')" class="w-full py-3.5 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-700 hover:to-indigo-700 text-white font-bold rounded-xl text-sm shadow-md shadow-brand-500/20 transition-all flex items-center justify-center gap-2 mb-3">
+                            <span>🎙️</span> Launch Live AI Scribe
+                        </button>
+                        <button onclick="openPatientModal()" class="w-full py-2.5 bg-white hover:bg-slate-50 text-slate-700 font-semibold border border-slate-200 rounded-xl text-sm transition-all flex items-center justify-center gap-2">
+                            <span>➕</span> Add New Patient
+                        </button>
+                    </div>
+
+                    <!-- Recent Consultations -->
+                    <div class="glass-card rounded-2xl p-6 lg:col-span-2">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Recent Consultations</h3>
+                            <button onclick="loadDashboard()" class="text-xs text-brand-600 hover:underline font-semibold">Refresh</button>
+                        </div>
+                        <div id="recentConsultations" class="space-y-2.5">
+                            <p class="text-xs text-slate-400 text-center py-8">Loading consultations...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ═══════════════════════════════════════════════════════════════ -->
+            <!-- 2. ADVANCED LIVE AI SCRIBE PAGE -->
+            <!-- ═══════════════════════════════════════════════════════════════ -->
+            <section id="page-consultation" class="page-content hidden anim-fade-up">
+
+                <!-- Patient Linker Bar -->
+                <div class="glass-card rounded-2xl p-4 mb-6 flex flex-wrap items-center justify-between gap-4">
+                    <div class="flex items-center gap-3 flex-1 min-w-[280px]">
+                        <span class="text-sm font-bold text-slate-700">Link Patient:</span>
+                        <select id="consultPatientSelect" onchange="onPatientSelectChange()" class="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-400">
+                            <option value="">— Select Registered Patient (or Anonymous) —</option>
+                        </select>
+                    </div>
+                    <div id="selectedPatientBadge" class="hidden text-xs px-3 py-1.5 rounded-lg bg-brand-50 border border-brand-200 text-brand-700 font-medium"></div>
+                    <!-- Mode Switcher -->
+                    <div class="flex items-center p-1 bg-slate-100 rounded-xl">
+                        <button id="btnModeLive" onclick="switchScribeMode('live')" class="px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all bg-white text-brand-600 shadow-sm">
+                            🎙️ Live Real-Time Scribe
+                        </button>
+                        <button id="btnModeUpload" onclick="switchScribeMode('upload')" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-800 transition-all">
+                            📁 Upload Audio File
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ── MODE A: LIVE REAL-TIME SCRIBE ── -->
+                <div id="scribeModeLive" class="glass-card rounded-2xl p-6 mb-6">
+                    <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-5 mb-5">
+                        <div>
+                            <h3 class="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+                                Ambient Clinical Scribe
+                                <span class="text-xs font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">0s Live Latency</span>
+                            </h3>
+                            <p class="text-xs text-slate-500 mt-1">Continuous live speech detection • Doctor & Patient dialogue separation</p>
+                        </div>
+                        <!-- Language toggle & controls -->
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs font-bold text-slate-500">Audio Language:</label>
+                            <select id="speechLangSelect" class="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium">
+                                <option value="en-IN">English (India) + Hinglish</option>
+                                <option value="en-US">English (US)</option>
+                                <option value="hi-IN">Hindi (हिन्दी)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Recording Controls & Visualizer -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+                        <div class="md:col-span-1 p-5 rounded-xl bg-slate-50 border border-slate-100 flex flex-col justify-between">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="flex items-center gap-2">
+                                    <div id="liveRecDot" class="w-3 h-3 rounded-full bg-slate-300"></div>
+                                    <span id="liveRecStatus" class="text-xs font-bold text-slate-500 uppercase tracking-wider">Ready</span>
+                                </div>
+                                <span id="liveTimer" class="font-mono text-xl font-extrabold text-slate-800">00:00</span>
+                            </div>
+
+                            <!-- Big Start / Stop Button -->
+                            <div class="space-y-2">
+                                <button id="liveStartBtn" onclick="toggleLiveScribe()" class="w-full py-3.5 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white font-bold rounded-xl text-sm shadow-lg shadow-rose-500/20 transition-all flex items-center justify-center gap-2">
+                                    <span class="text-lg">🎙️</span>
+                                    <span id="liveBtnText">Start Live Consultation</span>
+                                </button>
+                                <button id="fastProcessBtn" onclick="processLiveTranscript()" class="w-full py-3 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-700 hover:to-indigo-700 text-white font-bold rounded-xl text-xs shadow-md shadow-brand-500/20 transition-all flex items-center justify-center gap-2">
+                                    <span>⚡</span> Generate Advanced Notes (~2s)
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Waveform Canvas & VAD -->
+                        <div class="md:col-span-2 p-4 rounded-xl bg-white border border-slate-200 flex flex-col justify-between">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-xs font-bold text-slate-500 uppercase">Live Sound Spectrum & Decibels</span>
+                                <span id="decibelVal" class="text-xs font-mono font-semibold text-slate-500">0 dB (Silent)</span>
+                            </div>
+                            <canvas id="liveWaveformCanvas" class="w-full h-24 rounded-lg bg-slate-900/5"></canvas>
+                            <div class="flex items-center justify-between text-[11px] text-slate-400 mt-2">
+                                <span>Doctor speaking: Green wave</span>
+                                <span>Patient speaking: Indigo wave</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Live Running Dialogue Stream -->
+                    <div class="border border-slate-200 rounded-xl overflow-hidden bg-slate-50/50">
+                        <div class="bg-slate-100/80 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <span class="text-xs font-bold text-slate-700 uppercase tracking-wider">Live Speech Transcript</span>
+                                <span id="wordCountBadge" class="text-[11px] font-mono text-slate-400">0 words</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-slate-500">Active Speaker:</span>
+                                <button id="speakerToggleBtn" onclick="toggleActiveSpeaker()" class="px-2.5 py-1 text-xs font-bold rounded bg-brand-50 text-brand-600 border border-brand-200">
+                                    🩺 Doctor
+                                </button>
+                                <button onclick="clearLiveTranscript()" class="px-2 py-1 text-xs text-slate-500 hover:text-red-500 hover:bg-red-50 rounded transition-colors">
+                                    Clear
+                                </button>
+                            </div>
+                        </div>
+                        <div id="liveDialogueStream" class="p-4 space-y-3 min-h-[160px] max-h-[300px] overflow-y-auto">
+                            <div class="text-center py-8 text-slate-400 text-xs">
+                                Click <strong>"Start Live Consultation"</strong> and begin speaking. Your words will appear here instantly in real-time.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── MODE B: FILE UPLOAD ── -->
+                <div id="scribeModeUpload" class="glass-card rounded-2xl p-6 mb-6 hidden">
+                    <div class="text-center mb-5">
+                        <h3 class="text-lg font-bold text-slate-800">Fast Audio File Upload</h3>
+                        <p class="text-xs text-slate-400">Upload WAV, MP3, M4A audio files for high-speed transcription with Whisper Base</p>
+                    </div>
+                    <div id="dropZone" class="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center cursor-pointer hover:border-brand-400 transition-all bg-slate-50/50">
+                        <input type="file" id="audioFileInput" accept="audio/*" class="hidden">
+                        <div class="w-12 h-12 rounded-full bg-brand-50 text-brand-600 flex items-center justify-center mx-auto mb-3 text-xl">
+                            📁
+                        </div>
+                        <p class="text-sm font-semibold text-slate-700">Choose an audio file or drag & drop</p>
+                        <p class="text-xs text-slate-400 mt-1">WAV, MP3, WEBM, M4A up to 50MB</p>
+                    </div>
+
+                    <div id="fileUploadInfo" class="hidden mt-4 p-4 rounded-xl bg-white border border-slate-200 flex items-center justify-between">
+                        <div>
+                            <p id="uploadFileName" class="text-sm font-bold text-slate-800"></p>
+                            <p id="uploadFileSize" class="text-xs text-slate-400"></p>
+                        </div>
+                        <button id="btnProcessUpload" onclick="processUploadedFile()" class="px-5 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl shadow transition-all">
+                            ⚡ Transcribe & Generate Notes
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ── ADVANCED CLINICAL RESULTS SECTION ── -->
+                <div id="resultsSection" class="hidden anim-fade-up">
+
+                    <!-- Results Action Bar -->
+                    <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200" id="resultSessionBadge">
+                                Session Active
+                            </span>
+                            <span id="resultSpeedBadge" class="text-xs text-slate-500 font-mono">Completed in 2.1s</span>
+                        </div>
+                        <!-- 1-Click Export Bar -->
+                        <div class="flex items-center gap-2">
+                            <button onclick="copySoapNote()" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center gap-1.5 shadow-sm">
+                                📋 Copy Note
+                            </button>
+                            <button onclick="downloadMarkdownNote()" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 flex items-center gap-1.5 shadow-sm">
+                                📥 Markdown
+                            </button>
+                            <button onclick="printClinicalPackage()" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand-50 border border-brand-200 text-brand-700 hover:bg-brand-100 flex items-center gap-1.5 shadow-sm">
+                                🖨️ Print / PDF
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Clinical Feature Tabs -->
+                    <div class="flex items-center gap-1.5 mb-6 overflow-x-auto pb-2 border-b border-slate-200">
+                        <button class="res-tab active px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap bg-brand-600 text-white shadow-sm" onclick="switchResultTab('soap')">
+                            🏥 SOAP Note
+                        </button>
+                        <button class="res-tab px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap bg-white text-slate-600 border border-slate-200 hover:text-slate-900" onclick="switchResultTab('icd10')">
+                            🩺 ICD-10 & Billing
+                        </button>
+                        <button class="res-tab px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap bg-white text-slate-600 border border-slate-200 hover:text-slate-900" onclick="switchResultTab('ddx')">
+                            🧠 Differential DDx
+                        </button>
+                        <button class="res-tab px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap bg-white text-slate-600 border border-slate-200 hover:text-slate-900" onclick="switchResultTab('alerts')">
+                            ⚠️ Safety & Allergies
+                        </button>
+                        <button class="res-tab px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap bg-white text-slate-600 border border-slate-200 hover:text-slate-900" onclick="switchResultTab('rx')">
+                            💊 Prescriptions & Checklist
+                        </button>
+                        <button class="res-tab px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap bg-white text-slate-600 border border-slate-200 hover:text-slate-900" onclick="switchResultTab('patient_handout')">
+                            🗣️ Patient Handout (Bilingual)
+                        </button>
+                        <button class="res-tab px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap bg-white text-slate-600 border border-slate-200 hover:text-slate-900" onclick="switchResultTab('transcript')">
+                            📝 Full Transcript
+                        </button>
+                        <button class="res-tab px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap bg-white text-slate-600 border border-slate-200 hover:text-slate-900" onclick="switchResultTab('rag')">
+                            💬 Ask AI Copilot
+                        </button>
+                    </div>
+
+                    <!-- TAB 1: SOAP CLINICAL NOTE -->
+                    <div id="tab-res-soap" class="res-content">
+                        <div class="glass-card rounded-2xl p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h4 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                                    <span>🏥</span> Official Clinical SOAP Encounter
+                                </h4>
+                                <span class="text-xs text-slate-400 font-mono">EHR Standard Format</span>
+                            </div>
+                            <div id="soapContainer" class="space-y-4"></div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 2: ICD-10 & BILLING -->
+                    <div id="tab-res-icd10" class="res-content hidden">
+                        <div class="glass-card rounded-2xl p-6">
+                            <h4 class="text-base font-bold text-slate-800 mb-2 flex items-center gap-2">
+                                <span>🩺</span> ICD-10 Diagnostic & Billing Codes
+                            </h4>
+                            <p class="text-xs text-slate-400 mb-5">AI-suggested diagnostic codes mapped directly from symptoms and physician assessments.</p>
+                            <div id="icd10List" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 3: DIFFERENTIAL DIAGNOSIS (DDx) -->
+                    <div id="tab-res-ddx" class="res-content hidden">
+                        <div class="glass-card rounded-2xl p-6">
+                            <h4 class="text-base font-bold text-slate-800 mb-2 flex items-center gap-2">
+                                <span>🧠</span> Differential Diagnosis (DDx) Engine
+                            </h4>
+                            <p class="text-xs text-slate-400 mb-5">Likelihood analysis and clinical rationale to assist physician decision-making.</p>
+                            <div id="ddxList" class="space-y-4"></div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 4: SAFETY & ALLERGIES -->
+                    <div id="tab-res-alerts" class="res-content hidden">
+                        <div class="glass-card rounded-2xl p-6">
+                            <h4 class="text-base font-bold text-slate-800 mb-2 flex items-center gap-2">
+                                <span>⚠️</span> Safety & Allergy Contraindication Watch
+                            </h4>
+                            <p class="text-xs text-slate-400 mb-5">Automated cross-check against patient profile, known drug allergies, and medical history.</p>
+                            <div id="safetyAlertsList" class="space-y-3"></div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 5: RX & ACTION ITEMS -->
+                    <div id="tab-res-rx" class="res-content hidden">
+                        <div class="glass-card rounded-2xl p-6">
+                            <h4 class="text-base font-bold text-slate-800 mb-2 flex items-center gap-2">
+                                <span>💊</span> Prescriptions & Orders Checklist
+                            </h4>
+                            <p class="text-xs text-slate-400 mb-5">Interactive sign-off list for doctor review before entering into EHR.</p>
+                            <div id="rxPrescriptionsList" class="mb-6 space-y-2.5"></div>
+                            <h5 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Physician Order Items</h5>
+                            <div id="actionItemsChecklist" class="space-y-2"></div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 6: PATIENT HANDOUT (BILINGUAL) -->
+                    <div id="tab-res-patient_handout" class="res-content hidden">
+                        <div class="glass-card rounded-2xl p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h4 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                                    <span>🗣️</span> Patient Discharge Instructions & Home Care
+                                </h4>
+                                <span class="text-xs px-2.5 py-1 rounded bg-indigo-50 text-indigo-700 font-semibold border border-indigo-200">
+                                    Bilingual (English + Hindi)
+                                </span>
+                            </div>
+                            <div id="patientHandoutBox" class="p-5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap font-sans"></div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 7: FULL TRANSCRIPT -->
+                    <div id="tab-res-transcript" class="res-content hidden">
+                        <div class="glass-card rounded-2xl p-6">
+                            <h4 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                <span>📝</span> Full Labeled Transcript
+                            </h4>
+                            <div id="fullTranscriptContainer" class="space-y-3 max-h-[500px] overflow-y-auto pr-2"></div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 8: ASK AI COPILOT (RAG) -->
+                    <div id="tab-res-rag" class="res-content hidden">
+                        <div class="glass-card rounded-2xl p-6">
+                            <h4 class="text-base font-bold text-slate-800 mb-2 flex items-center gap-2">
+                                <span>💬</span> Clinical Consultation Copilot (RAG)
+                            </h4>
+                            <p class="text-xs text-slate-400 mb-4">Ask any clinical question regarding this patient's encounter. Grounded in dialogue.</p>
+                            <div class="flex gap-2 mb-5">
+                                <input type="text" id="copilotQuestionInput" placeholder="e.g. Did the patient report chest pain or allergies?" class="flex-1 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" onkeydown="if(event.key==='Enter') askCopilot()">
+                                <button onclick="askCopilot()" class="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl shadow transition-all">
+                                    Query
+                                </button>
+                            </div>
+                            <div id="copilotQaFeed" class="space-y-3"></div>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- ═══════════════════════════════════════════════════════════════ -->
+            <!-- 3. PATIENTS (CRUD) PAGE -->
+            <!-- ═══════════════════════════════════════════════════════════════ -->
+            <section id="page-patients" class="page-content hidden anim-fade-up">
+                <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+                    <div class="flex items-center gap-3 flex-1 max-w-md">
+                        <input type="text" id="patientSearchInput" placeholder="Search patients by name, phone..." oninput="searchPatients()" class="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-400">
+                    </div>
+                    <button onclick="openPatientModal()" class="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl shadow transition-all flex items-center gap-2">
+                        <span>➕</span> Register New Patient
+                    </button>
+                </div>
+                <div id="patientsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+            </section>
+
+            <!-- ═══════════════════════════════════════════════════════════════ -->
+            <!-- 4. PAST CONSULTATIONS PAGE -->
+            <!-- ═══════════════════════════════════════════════════════════════ -->
+            <section id="page-history" class="page-content hidden anim-fade-up">
+                <div class="glass-card rounded-2xl p-6">
+                    <div class="flex items-center justify-between mb-5">
+                        <h3 class="text-base font-bold text-slate-800">Encounter History & EHR Records</h3>
+                        <button onclick="loadHistory()" class="text-xs text-brand-600 font-semibold hover:underline">Refresh</button>
+                    </div>
+                    <div id="historyListContainer" class="space-y-3"></div>
+                </div>
+            </section>
+
+            <!-- ═══════════════════════════════════════════════════════════════ -->
+            <!-- 5. ANALYTICS PAGE -->
+            <!-- ═══════════════════════════════════════════════════════════════ -->
+            <section id="page-analytics" class="page-content hidden anim-fade-up">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    <div class="glass-card rounded-2xl p-6">
+                        <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Patient Volume Trends</h4>
+                        <div class="h-64"><canvas id="chartPatients"></canvas></div>
+                    </div>
+                    <div class="glass-card rounded-2xl p-6">
+                        <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Consultation Note Status</h4>
+                        <div class="h-64"><canvas id="chartStatus"></canvas></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ═══════════════════════════════════════════════════════════════ -->
+            <!-- 6. SETTINGS & PERFORMANCE PAGE -->
+            <!-- ═══════════════════════════════════════════════════════════════ -->
+            <section id="page-settings" class="page-content hidden anim-fade-up">
+                <div class="max-w-2xl space-y-6">
+                    <!-- API Key Setup -->
+                    <div class="glass-card rounded-2xl p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                                <span>🔑</span> AI Model & API Configuration
+                            </h3>
+                            <span id="geminiStatusBadge" class="text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                                Checking...
+                            </span>
+                        </div>
+                        <p class="text-xs text-slate-500 mb-5 leading-relaxed">
+                            CareNote AI comes with a built-in <strong>High-Speed Clinical NLP Engine</strong> that generates notes instantly even without an API key. You can also connect your <strong>Google Gemini API Key</strong> to activate Gemini 2.0 Flash generative intelligence.
+                        </p>
+                        <form onsubmit="saveApiKeys(event)" class="space-y-4 text-xs">
+                            <div>
+                                <label class="font-bold text-slate-700 block mb-1">Google Gemini API Key</label>
+                                <input type="password" id="inputGeminiKey" placeholder="AIzaSy..." class="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-brand-400">
+                                <p class="text-[11px] text-slate-400 mt-1">Get a key from <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-brand-600 underline">Google AI Studio</a></p>
+                            </div>
+                            <div>
+                                <label class="font-bold text-slate-700 block mb-1">HuggingFace Token (Optional for offline PyAnnote diarization)</label>
+                                <input type="password" id="inputHfToken" placeholder="hf_..." class="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-brand-400">
+                            </div>
+                            <div class="flex items-center justify-between pt-2">
+                                <span id="apiKeySaveMsg" class="text-xs text-emerald-600 font-semibold hidden">✓ Keys saved successfully!</span>
+                                <button type="submit" class="ml-auto px-5 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl shadow transition-all">
+                                    Save & Activate Keys
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Engine Performance -->
+                    <div class="glass-card rounded-2xl p-6">
+                        <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
+                            <span>⚡</span> Speech Transcription Engine
+                        </h3>
+                        <div class="space-y-4 text-xs">
+                            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                                <h5 class="font-bold text-slate-700 text-sm mb-1">Audio File Whisper Model (CPU)</h5>
+                                <p class="text-slate-500 mb-3">Default is <strong>base</strong> (1-3s fast execution). Medium takes 40-60s on CPU.</p>
+                                <select id="settingWhisperModel" class="px-3 py-2 bg-white border border-slate-200 rounded-lg">
+                                    <option value="base" selected>base (Ultra-Fast 1-3s, Recommended)</option>
+                                    <option value="small">small (Balanced 4-6s)</option>
+                                    <option value="medium">medium (Deep 40-60s)</option>
+                                </select>
+                            </div>
+                            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                                <h5 class="font-bold text-slate-700 text-sm mb-1">Live Scribe Architecture</h5>
+                                <p class="text-slate-500">Uses Browser Continuous Web Speech API with real-time Speech Recognition & Voice Activity Decibel visualizer (0ms latency).</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+</div>
+
+<!-- ═══ PATIENT MODAL (CREATE / EDIT) ═══ -->
+<div id="patientModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
+    <div class="bg-white rounded-2xl w-full max-w-lg mx-4 shadow-2xl overflow-hidden anim-fade-up">
+        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+            <h3 id="patientModalTitle" class="text-base font-bold text-slate-900">Add Patient</h3>
+            <button onclick="closePatientModal()" class="text-slate-400 hover:text-slate-600 text-lg">&times;</button>
+        </div>
+        <form id="patientForm" onsubmit="savePatient(event)" class="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+            <input type="hidden" id="patientEditId" value="">
+            <div>
+                <label class="text-xs font-bold text-slate-500 uppercase block mb-1">Full Name *</label>
+                <input type="text" id="pName" required class="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-400">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="text-xs font-bold text-slate-500 uppercase block mb-1">Age</label>
+                    <input type="number" id="pAge" class="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-400">
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-500 uppercase block mb-1">Gender</label>
+                    <select id="pGender" class="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-400">
+                        <option value="">Select</option>
+                        <option>Male</option>
+                        <option>Female</option>
+                        <option>Other</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="text-xs font-bold text-slate-500 uppercase block mb-1">Phone</label>
+                    <input type="text" id="pPhone" class="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-400">
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-500 uppercase block mb-1">Blood Group</label>
+                    <input type="text" id="pBlood" placeholder="e.g. O+, B+" class="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-400">
+                </div>
+            </div>
+            <div>
+                <label class="text-xs font-bold text-rose-500 uppercase block mb-1">Known Allergies (Crucial)</label>
+                <input type="text" id="pAllergies" placeholder="e.g. Penicillin, Sulfa, Aspirin" class="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-400">
+            </div>
+            <div>
+                <label class="text-xs font-bold text-slate-500 uppercase block mb-1">Medical History</label>
+                <textarea id="pHistory" rows="2" placeholder="Hypertension, Type 2 Diabetes, Asthmatic..." class="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-400 resize-none"></textarea>
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button type="button" onclick="closePatientModal()" class="px-4 py-2 text-xs font-semibold text-slate-500 hover:text-slate-800">Cancel</button>
+                <button type="submit" class="px-5 py-2 bg-brand-600 text-white font-bold text-xs rounded-xl shadow">Save Patient Record</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ═══ APPLICATION LOGIC (JAVASCRIPT) ═══ -->
+<script>
+const API = window.location.origin;
+
+// State
+let currentSessionId = null;
+let currentClinicalPackage = null;
+let patientsCache = [];
+let isLiveRecording = false;
+let liveSpeechRecognition = null;
+let audioContext = null;
+let analyserNode = null;
+let audioStream = null;
+let waveformAnimId = null;
+let liveRecordingStartTime = null;
+let liveTimerInterval = null;
+let activeSpeaker = "Doctor"; // "Doctor" or "Patient"
+let liveTranscriptSegments = [];
+let chartInstances = {};
+
+// ── Sidebar & Navigation ──────────────────────────────────────────────────
+function toggleSidebar() {
+    const sb = document.getElementById('sidebar');
+    const wrap = document.getElementById('mainWrapper');
+    const brand = document.getElementById('brandText');
+    if (sb.classList.contains('w-64')) {
+        sb.classList.remove('w-64');
+        sb.classList.add('w-20');
+        wrap.classList.remove('ml-64');
+        wrap.classList.add('ml-20');
+        brand.classList.add('hidden');
+        document.querySelectorAll('.nav-label').forEach(el => el.classList.add('hidden'));
+    } else {
+        sb.classList.remove('w-20');
+        sb.classList.add('w-64');
+        wrap.classList.remove('ml-20');
+        wrap.classList.add('ml-64');
+        brand.classList.remove('hidden');
+        document.querySelectorAll('.nav-label').forEach(el => el.classList.remove('hidden'));
+    }
+}
+
+function navigate(page) {
+    document.querySelectorAll('.page-content').forEach(p => p.classList.add('hidden'));
+    document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+
+    const targetPage = document.getElementById(`page-${page}`);
+    if (targetPage) targetPage.classList.remove('hidden');
+
+    const titleMap = {
+        dashboard: 'Clinical Dashboard',
+        consultation: 'Live Ambient Scribe (0s Latency)',
+        patients: 'Patient Directory (CRUD)',
+        history: 'Encounter History & EHR Records',
+        analytics: 'Practice Insights & Analytics',
+        settings: 'System Performance & Settings',
+    };
+    document.getElementById('pageTitle').textContent = titleMap[page] || 'CareNote AI';
+
+    const activeNav = Array.from(document.querySelectorAll('.sidebar-item')).find(a => a.getAttribute('href') === `#${page}`);
+    if (activeNav) activeNav.classList.add('active');
+
+    if (page === 'dashboard') loadDashboard();
+    if (page === 'patients') loadPatients();
+    if (page === 'history') loadHistory();
+    if (page === 'analytics') loadAnalytics();
+    if (page === 'consultation') loadPatientSelector();
+    if (page === 'settings') loadSettingsStatus();
+}
+
+function switchScribeMode(mode) {
+    if (mode === 'live') {
+        document.getElementById('scribeModeLive').classList.remove('hidden');
+        document.getElementById('scribeModeUpload').classList.add('hidden');
+        document.getElementById('btnModeLive').className = 'px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all bg-white text-brand-600 shadow-sm';
+        document.getElementById('btnModeUpload').className = 'px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-800 transition-all';
+    } else {
+        document.getElementById('scribeModeLive').classList.add('hidden');
+        document.getElementById('scribeModeUpload').classList.remove('hidden');
+        document.getElementById('btnModeUpload').className = 'px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all bg-white text-brand-600 shadow-sm';
+        document.getElementById('btnModeLive').className = 'px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-800 transition-all';
+    }
+}
+
+// ── LIVE AMBIENT SCRIBE & AUDIO SOUND DETECTION ────────────────────────────
+function toggleActiveSpeaker() {
+    activeSpeaker = activeSpeaker === "Doctor" ? "Patient" : "Doctor";
+    const btn = document.getElementById('speakerToggleBtn');
+    if (activeSpeaker === "Doctor") {
+        btn.innerHTML = '🩺 Doctor';
+        btn.className = 'px-2.5 py-1 text-xs font-bold rounded bg-brand-50 text-brand-600 border border-brand-200';
+    } else {
+        btn.innerHTML = '🧑 Patient';
+        btn.className = 'px-2.5 py-1 text-xs font-bold rounded bg-purple-50 text-purple-600 border border-purple-200';
+    }
+}
+
+async function toggleLiveScribe() {
+    if (isLiveRecording) {
+        stopLiveScribe();
+    } else {
+        startLiveScribe();
+    }
+}
+
+async function startLiveScribe() {
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRec) {
+        alert('Web Speech API is not supported in this browser. Please use Chrome or Edge for live transcription.');
+        return;
+    }
+
+    try {
+        // Audio stream for spectrum visualizer & decibel meter
+        audioStream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true }
+        });
+
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioContext.createMediaStreamSource(audioStream);
+        analyserNode = audioContext.createAnalyser();
+        analyserNode.fftSize = 256;
+        source.connect(analyserNode);
+
+        // Speech recognition
+        liveSpeechRecognition = new SpeechRec();
+        liveSpeechRecognition.continuous = true;
+        liveSpeechRecognition.interimResults = true;
+        liveSpeechRecognition.lang = document.getElementById('speechLangSelect').value || 'en-IN';
+
+        let interimSpan = null;
+
+        liveSpeechRecognition.onresult = (event) => {
+            let interimTranscript = '';
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                const transcript = event.results[i][0].transcript;
+                if (event.results[i].isFinal) {
+                    appendFinalUtterance(activeSpeaker, transcript.trim());
+                    interimTranscript = '';
+                } else {
+                    interimTranscript += transcript;
+                }
+            }
+
+            const stream = document.getElementById('liveDialogueStream');
+            if (interimTranscript) {
+                if (!interimSpan) {
+                    interimSpan = document.createElement('div');
+                    interimSpan.className = 'p-3 rounded-lg bubble-live text-xs text-slate-500 italic flex items-center gap-2';
+                    stream.appendChild(interimSpan);
+                }
+                interimSpan.innerHTML = `<span class="w-2 h-2 rounded-full bg-brand-500 animate-pulse"></span> <strong>[${activeSpeaker}]:</strong> ${interimTranscript}`;
+                stream.scrollTop = stream.scrollHeight;
+            } else if (interimSpan) {
+                interimSpan.remove();
+                interimSpan = null;
+            }
+        };
+
+        liveSpeechRecognition.onerror = (e) => {
+            console.warn('Speech recognition error:', e.error);
+        };
+
+        liveSpeechRecognition.onend = () => {
+            if (isLiveRecording) {
+                // Auto restart if continuous stopped
+                try { liveSpeechRecognition.start(); } catch (err) {}
+            }
+        };
+
+        liveSpeechRecognition.start();
+        isLiveRecording = true;
+
+        // UI state
+        document.getElementById('liveRecDot').className = 'w-3 h-3 rounded-full bg-red-500 recording-dot';
+        document.getElementById('liveRecStatus').textContent = 'Listening Live';
+        document.getElementById('liveRecStatus').className = 'text-xs font-bold text-red-600 uppercase tracking-wider';
+        document.getElementById('liveBtnText').textContent = 'Stop Listening';
+        document.getElementById('vadIndicator').classList.remove('hidden');
+        document.getElementById('vadIndicator').classList.add('flex');
+
+        liveRecordingStartTime = Date.now();
+        liveTimerInterval = setInterval(updateLiveTimer, 1000);
+        drawWaveformAndDecibels();
+
+    } catch (err) {
+        alert('Microphone access failed: ' + err.message);
+    }
+}
+
+function stopLiveScribe() {
+    isLiveRecording = false;
+    if (liveSpeechRecognition) {
+        try { liveSpeechRecognition.stop(); } catch (e) {}
+    }
+    if (audioStream) {
+        audioStream.getTracks().forEach(t => t.stop());
+        audioStream = null;
+    }
+    if (waveformAnimId) {
+        cancelAnimationFrame(waveformAnimId);
+        waveformAnimId = null;
+    }
+    if (liveTimerInterval) {
+        clearInterval(liveTimerInterval);
+        liveTimerInterval = null;
+    }
+    if (audioContext) {
+        audioContext.close();
+        audioContext = null;
+    }
+
+    // UI reset
+    document.getElementById('liveRecDot').className = 'w-3 h-3 rounded-full bg-slate-300';
+    document.getElementById('liveRecStatus').textContent = 'Paused / Complete';
+    document.getElementById('liveRecStatus').className = 'text-xs font-bold text-slate-500 uppercase tracking-wider';
+    document.getElementById('liveBtnText').textContent = 'Resume Consultation';
+    document.getElementById('vadIndicator').classList.add('hidden');
+}
+
+function appendFinalUtterance(speaker, text) {
+    if (!text) return;
+    liveTranscriptSegments.push({ speaker, text, timestamp: new Date().toLocaleTimeString() });
+
+    const stream = document.getElementById('liveDialogueStream');
+    if (liveTranscriptSegments.length === 1) {
+        stream.innerHTML = '';
+    }
+
+    const isDoc = speaker === 'Doctor';
+    const bubble = document.createElement('div');
+    bubble.className = `${isDoc ? 'bubble-doctor' : 'bubble-patient'} rounded-xl p-3.5 anim-fade-up`;
+    bubble.innerHTML = `
+        <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-bold ${isDoc ? 'text-sky-700' : 'text-purple-700'} uppercase tracking-wide">
+                ${isDoc ? '🩺 Doctor' : '🧑 Patient'}
+            </span>
+            <span class="text-[10px] text-slate-400 font-mono">${new Date().toLocaleTimeString()}</span>
+        </div>
+        <p class="text-xs text-slate-700 leading-relaxed">${esc(text)}</p>
+    `;
+    stream.appendChild(bubble);
+    stream.scrollTop = stream.scrollHeight;
+
+    // Update word count
+    const totalWords = liveTranscriptSegments.reduce((acc, s) => acc + s.text.split(' ').length, 0);
+    document.getElementById('wordCountBadge').textContent = `${totalWords} words captured`;
+}
+
+function clearLiveTranscript() {
+    liveTranscriptSegments = [];
+    document.getElementById('liveDialogueStream').innerHTML = `
+        <div class="text-center py-8 text-slate-400 text-xs">
+            Dialogue cleared. Click <strong>"Start Live Consultation"</strong> to resume.
+        </div>
+    `;
+    document.getElementById('wordCountBadge').textContent = '0 words';
+}
+
+function updateLiveTimer() {
+    if (!liveRecordingStartTime) return;
+    const elapsed = Math.floor((Date.now() - liveRecordingStartTime) / 1000);
+    const m = Math.floor(elapsed / 60);
+    const s = elapsed % 60;
+    document.getElementById('liveTimer').textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+function drawWaveformAndDecibels() {
+    if (!analyserNode) return;
+    const canvas = document.getElementById('liveWaveformCanvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width = canvas.offsetWidth;
+    const H = canvas.height = canvas.offsetHeight;
+    const bufLen = analyserNode.frequencyBinCount;
+    const data = new Uint8Array(bufLen);
+
+    function loop() {
+        waveformAnimId = requestAnimationFrame(loop);
+        analyserNode.getByteFrequencyData(data);
+
+        // Calculate average volume / decibels
+        let sum = 0;
+        for (let i = 0; i < bufLen; i++) sum += data[i];
+        const avg = sum / bufLen;
+        const dB = Math.round(avg * 0.7);
+
+        // VAD UI
+        const isVoice = dB > 14;
+        const vadDot = document.getElementById('vadDot');
+        const vadText = document.getElementById('vadText');
+        const vadBar = document.getElementById('vadBar');
+        const decibelVal = document.getElementById('decibelVal');
+
+        if (isVoice) {
+            vadDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping';
+            vadText.textContent = `${dB} dB Speaking`;
+            vadText.className = 'text-emerald-700 font-bold';
+            vadBar.style.width = `${Math.min(100, dB * 1.5)}%`;
+            decibelVal.textContent = `${dB} dB (Voice Active)`;
+            decibelVal.className = 'text-xs font-mono font-bold text-emerald-600';
+        } else {
+            vadDot.className = 'w-2.5 h-2.5 rounded-full bg-slate-300';
+            vadText.textContent = `${dB} dB Ambient`;
+            vadText.className = 'text-slate-400';
+            vadBar.style.width = `${Math.min(25, dB)}%`;
+            decibelVal.textContent = `${dB} dB (Silence)`;
+            decibelVal.className = 'text-xs font-mono font-semibold text-slate-400';
+        }
+
+        // Draw visualizer
+        ctx.clearRect(0, 0, W, H);
+        const barCount = 48;
+        const barW = (W / barCount) * 0.7;
+        const gap = (W / barCount) * 0.3;
+
+        for (let i = 0; i < barCount; i++) {
+            const val = data[i * 2] || 0;
+            const pct = val / 255;
+            const barH = Math.max(3, pct * (H - 8));
+            const x = i * (barW + gap);
+            const y = (H - barH) / 2;
+
+            ctx.fillStyle = activeSpeaker === 'Doctor'
+                ? `rgba(2, 132, 199, ${0.3 + pct * 0.7})`
+                : `rgba(168, 85, 247, ${0.3 + pct * 0.7})`;
+
+            ctx.beginPath();
+            ctx.roundRect(x, y, barW, barH, 2);
+            ctx.fill();
+        }
+    }
+    loop();
+}
+
+// ── FAST SINGLE-PASS CLINICAL PROCESSING (~2s) ─────────────────────────────
+async function processLiveTranscript() {
+    if (liveTranscriptSegments.length === 0) {
+        alert('Please speak or record some dialogue first before generating notes.');
+        return;
+    }
+
+    const btn = document.getElementById('fastProcessBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="animate-spin">🌀</span> Generating Clinical Package (~2s)...';
+
+    const patientId = document.getElementById('consultPatientSelect').value || null;
+    const fullText = liveTranscriptSegments.map(s => `[${s.speaker}]: ${s.text}`).join('\n');
+
+    try {
+        const start = performance.now();
+        const res = await fetch(`${API}/consult/fast-process`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                patient_id: patientId ? parseInt(patientId) : null,
+                transcript_text: fullText,
+                transcript_segments: liveTranscriptSegments,
+            })
+        });
+
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || 'Processing failed');
+        }
+
+        const data = await res.json();
+        const durationSec = ((performance.now() - start) / 1000).toFixed(1);
+
+        currentSessionId = data.session_id;
+        currentClinicalPackage = data;
+
+        // Render full suite
+        renderClinicalPackage(data, durationSec);
+
+    } catch (e) {
+        alert('Error: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span>⚡</span> Generate Advanced Notes (~2s)';
+    }
+}
+
+// ── RENDER COMPLETE CLINICAL INTELLIGENCE PACKAGE ──────────────────────────
+function renderClinicalPackage(data, durationSec = "2.1") {
+    document.getElementById('resultsSection').classList.remove('hidden');
+    document.getElementById('resultSessionBadge').textContent = `Session: ${data.session_id}`;
+    document.getElementById('resultSpeedBadge').textContent = `⚡ Generated in ${durationSec}s`;
+
+    // 1. SOAP Note
+    renderSoapSection(data.soap_note);
+
+    // 2. ICD-10 Codes
+    renderIcd10Section(data.icd10_codes || []);
+
+    // 3. Differential Diagnosis
+    renderDdxSection(data.differential_diagnosis || []);
+
+    // 4. Safety & Allergies
+    renderSafetyAlerts(data.safety_alerts || []);
+
+    // 5. Prescriptions & Actions
+    renderRxAndActions(data.extraction || {}, data.action_summary || []);
+
+    // 6. Patient Handout
+    document.getElementById('patientHandoutBox').textContent = data.patient_instructions || "Patient instructions not specified.";
+
+    // 7. Full Transcript
+    renderFullTranscript(data.role_labeled_transcript || liveTranscriptSegments);
+
+    // Switch to SOAP tab by default
+    switchResultTab('soap');
+
+    // Scroll down to results
+    document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+}
+
+function renderSoapSection(soapText) {
+    const container = document.getElementById('soapContainer');
+    if (!soapText) {
+        container.innerHTML = '<p class="text-xs text-slate-400">No SOAP note available.</p>';
+        return;
+    }
+
+    const sections = [
+        { key: 'SUBJECTIVE:', title: 'Subjective (Symptoms & History)', cls: 'soap-s', icon: '📋', textClr: 'text-blue-700' },
+        { key: 'OBJECTIVE:', title: 'Objective (Vitals & Physical Exam)', cls: 'soap-o', icon: '🔬', textClr: 'text-teal-700' },
+        { key: 'ASSESSMENT:', title: 'Assessment (Clinical Impression)', cls: 'soap-a', icon: '🩺', textClr: 'text-rose-700' },
+        { key: 'PLAN:', title: 'Plan (Treatment, Rx, Follow-up)', cls: 'soap-p', icon: '📝', textClr: 'text-emerald-700' },
+    ];
+
+    let html = '';
+    sections.forEach(sec => {
+        const start = soapText.indexOf(sec.key);
+        if (start !== -1) {
+            let end = soapText.length;
+            for (let other of sections) {
+                const oStart = soapText.indexOf(other.key);
+                if (oStart > start && oStart < end) end = oStart;
+            }
+            const content = soapText.substring(start + sec.key.length, end).trim();
+            html += `
+                <div class="${sec.cls} p-4 rounded-xl">
+                    <h5 class="text-xs font-bold uppercase tracking-wider ${sec.textClr} flex items-center gap-1.5 mb-2">
+                        <span>${sec.icon}</span> ${sec.title}
+                    </h5>
+                    <div class="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap font-sans">${esc(content)}</div>
+                </div>
+            `;
+        }
+    });
+
+    if (!html) {
+        html = `<div class="p-4 rounded-xl bg-slate-50 text-xs text-slate-700 whitespace-pre-wrap">${esc(soapText)}</div>`;
+    }
+    container.innerHTML = html;
+}
+
+function renderIcd10Section(codes) {
+    const container = document.getElementById('icd10List');
+    if (!codes || codes.length === 0) {
+        container.innerHTML = '<p class="text-xs text-slate-400 col-span-2">No diagnostic codes flagged for this encounter.</p>';
+        return;
+    }
+    container.innerHTML = codes.map(c => `
+        <div class="p-4 rounded-xl bg-white border border-slate-200 hover:border-brand-300 transition-all flex items-start justify-between gap-3">
+            <div>
+                <span class="px-2.5 py-1 rounded bg-brand-50 text-brand-700 font-mono font-bold text-xs border border-brand-200">${esc(c.code)}</span>
+                <p class="text-xs font-bold text-slate-800 mt-2">${esc(c.description)}</p>
+                <span class="text-[10px] text-slate-400">Confidence: ${esc(c.confidence || 'High')}</span>
+            </div>
+            <span class="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">Billable</span>
+        </div>
+    `).join('');
+}
+
+function renderDdxSection(ddx) {
+    const container = document.getElementById('ddxList');
+    if (!ddx || ddx.length === 0) {
+        container.innerHTML = '<p class="text-xs text-slate-400">No differential diagnoses available.</p>';
+        return;
+    }
+    container.innerHTML = ddx.map((d, i) => {
+        const isHigh = d.likelihood === 'High';
+        const barColor = isHigh ? 'bg-rose-500' : 'bg-amber-500';
+        const pct = isHigh ? '85%' : '55%';
+        return `
+            <div class="p-4 rounded-xl bg-white border border-slate-200">
+                <div class="flex items-center justify-between mb-2">
+                    <h5 class="text-xs font-bold text-slate-800">${i+1}. ${esc(d.condition)}</h5>
+                    <span class="text-[11px] font-bold px-2 py-0.5 rounded ${isHigh ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'}">${esc(d.likelihood)} Likelihood</span>
+                </div>
+                <div class="w-full h-1.5 bg-slate-100 rounded-full mb-2.5 overflow-hidden">
+                    <div class="${barColor} h-full" style="width: ${pct};"></div>
+                </div>
+                <p class="text-xs text-slate-500 leading-relaxed">${esc(d.rationale)}</p>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderSafetyAlerts(alerts) {
+    const container = document.getElementById('safetyAlertsList');
+    if (!alerts || alerts.length === 0) {
+        container.innerHTML = `
+            <div class="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center gap-2">
+                <span>✅</span> No adverse drug interactions or allergy contraindications detected for this patient.
+            </div>
+        `;
+        return;
+    }
+    container.innerHTML = alerts.map(a => `
+        <div class="p-4 rounded-xl ${a.severity==='high' ? 'bg-rose-50 border-rose-200 text-rose-800' : 'bg-amber-50 border-amber-200 text-amber-800'} border flex items-start gap-3">
+            <span class="text-lg">${a.severity==='high' ? '🚨' : '⚠️'}</span>
+            <div>
+                <p class="text-xs font-bold uppercase tracking-wider">${esc(a.category || 'Clinical Precaution')}</p>
+                <p class="text-xs mt-1 leading-relaxed">${esc(a.message)}</p>
+            </div>
+        </div>
+    `).join('');
+}
+
+function renderRxAndActions(extraction, actions) {
+    const rxBox = document.getElementById('rxPrescriptionsList');
+    const actBox = document.getElementById('actionItemsChecklist');
+
+    const meds = extraction?.treatment_plan?.medications_prescribed || [];
+    if (meds.length === 0) {
+        rxBox.innerHTML = '<p class="text-xs text-slate-400">No new medications prescribed during this encounter.</p>';
+    } else {
+        rxBox.innerHTML = `
+            <h5 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Prescribed Medications (Sign-off)</h5>
+            <div class="space-y-2">
+                ${meds.map((m, i) => `
+                    <div class="p-3 rounded-xl bg-white border border-slate-200 flex items-center justify-between text-xs">
+                        <div class="flex items-center gap-2.5">
+                            <input type="checkbox" id="rx-${i}" checked class="rounded text-brand-600 focus:ring-brand-400">
+                            <div>
+                                <strong class="text-slate-800">${esc(m.drug)}</strong>
+                                <span class="text-slate-500 font-mono ml-2">${esc(m.dosage || '')} • ${esc(m.frequency || '')}</span>
+                            </div>
+                        </div>
+                        <span class="text-slate-400 font-mono">${esc(m.duration || '')}</span>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    if (!actions || actions.length === 0) {
+        actBox.innerHTML = '<p class="text-xs text-slate-400">No action items.</p>';
+    } else {
+        actBox.innerHTML = actions.map((a, i) => `
+            <div class="p-3 rounded-xl bg-white border border-slate-100 flex items-start gap-3 text-xs">
+                <input type="checkbox" id="act-${i}" class="mt-0.5 rounded text-emerald-600 focus:ring-emerald-400">
+                <label for="act-${i}" class="text-slate-700 flex-1 leading-relaxed cursor-pointer">${esc(a)}</label>
+            </div>
+        `).join('');
+    }
+}
+
+function renderFullTranscript(transcript) {
+    const container = document.getElementById('fullTranscriptContainer');
+    if (!transcript || transcript.length === 0) {
+        container.innerHTML = '<p class="text-xs text-slate-400">No transcript available.</p>';
+        return;
+    }
+    container.innerHTML = transcript.map(t => {
+        const isDoc = (t.speaker || '').toLowerCase().includes('doctor');
+        return `
+            <div class="${isDoc ? 'bubble-doctor' : 'bubble-patient'} rounded-xl p-3">
+                <span class="text-[11px] font-bold ${isDoc ? 'text-sky-700' : 'text-purple-700'} uppercase">${esc(t.speaker || 'Speaker')}</span>
+                <p class="text-xs text-slate-700 mt-1 leading-relaxed">${esc(t.text)}</p>
+            </div>
+        `;
+    }).join('');
+}
+
+function switchResultTab(tabKey) {
+    document.querySelectorAll('.res-content').forEach(c => c.classList.add('hidden'));
+    document.querySelectorAll('.res-tab').forEach(b => {
+        b.className = 'res-tab px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap bg-white text-slate-600 border border-slate-200 hover:text-slate-900';
+    });
+    const target = document.getElementById(`tab-res-${tabKey}`);
+    if (target) target.classList.remove('hidden');
+
+    const activeBtn = Array.from(document.querySelectorAll('.res-tab')).find(b => b.getAttribute('onclick')?.includes(tabKey));
+    if (activeBtn) {
+        activeBtn.className = 'res-tab active px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap bg-brand-600 text-white shadow-sm';
+    }
+}
+
+// ── 1-CLICK EXPORT UTILITIES ──────────────────────────────────────────────
+function copySoapNote() {
+    if (!currentClinicalPackage?.soap_note) return;
+    navigator.clipboard.writeText(currentClinicalPackage.soap_note);
+    alert('✓ SOAP note copied to clipboard (Ready to paste into EHR).');
+}
+
+function downloadMarkdownNote() {
+    if (!currentClinicalPackage) return;
+    const text = `# CareNote AI Clinical Encounter\nSession: ${currentClinicalPackage.session_id}\n\n${currentClinicalPackage.soap_note}\n\n## Patient Handout\n${currentClinicalPackage.patient_instructions || ''}`;
+    const blob = new Blob([text], { type: 'text/markdown' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `Encounter_${currentClinicalPackage.session_id}.md`;
+    a.click();
+}
+
+function printClinicalPackage() {
+    window.print();
+}
+
+// ── ASK CLINICAL COPILOT (RAG) ───────────────────────────────────────────
+async function askCopilot() {
+    const input = document.getElementById('copilotQuestionInput');
+    const question = input.value.trim();
+    if (!question || !currentSessionId) return;
+
+    const feed = document.getElementById('copilotQaFeed');
+    const qDiv = document.createElement('div');
+    qDiv.className = 'p-3.5 rounded-xl bg-white border border-slate-200 text-xs anim-fade-up';
+    qDiv.innerHTML = `
+        <div class="font-bold text-slate-800 mb-1 flex items-center gap-1.5">
+            <span>❓</span> ${esc(question)}
+        </div>
+        <div class="text-slate-500 ans-text italic">Searching transcript...</div>
+    `;
+    feed.prepend(qDiv);
+    input.value = '';
+
+    try {
+        const res = await fetch(`${API}/consult/${currentSessionId}/ask`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question }),
+        });
+        const data = await res.json();
+        qDiv.querySelector('.ans-text').innerHTML = esc(data.answer);
+        qDiv.querySelector('.ans-text').className = 'text-slate-700 leading-relaxed font-sans not-italic mt-1';
+    } catch (e) {
+        qDiv.querySelector('.ans-text').textContent = 'Error querying transcript: ' + e.message;
+    }
+}
+
+// ── PATIENT CRUD ──────────────────────────────────────────────────────────
+async function loadPatients() {
+    const grid = document.getElementById('patientsGrid');
+    try {
+        const res = await fetch(`${API}/patients`);
+        const patients = await res.json();
+        patientsCache = patients;
+
+        if (patients.length === 0) {
+            grid.innerHTML = '<p class="col-span-3 text-xs text-slate-400 text-center py-12">No registered patients found. Click "+ Register New Patient" to add one.</p>';
+            return;
+        }
+
+        grid.innerHTML = patients.map(p => `
+            <div class="glass-card rounded-2xl p-5 hover:border-brand-300 transition-all flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <h4 class="font-bold text-sm text-slate-900">${esc(p.name)}</h4>
+                        <span class="text-xs px-2 py-0.5 rounded bg-brand-50 text-brand-700 font-mono">ID #${p.id}</span>
+                    </div>
+                    <p class="text-xs text-slate-400 mb-3">${p.age || '—'} yrs • ${esc(p.gender || 'Not specified')} • ${esc(p.blood_group || 'Blood N/A')}</p>
+                    <div class="text-xs space-y-1 text-slate-600">
+                        <p><strong>Phone:</strong> ${esc(p.phone || '—')}</p>
+                        <p><strong>Allergies:</strong> <span class="text-rose-600 font-semibold">${esc(p.allergies || 'None')}</span></p>
+                        <p class="truncate"><strong>History:</strong> ${esc(p.medical_history || 'None documented')}</p>
+                    </div>
+                </div>
+                <div class="flex items-center justify-end gap-2 pt-4 mt-4 border-t border-slate-100">
+                    <button onclick="editPatient(${p.id})" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700">Edit</button>
+                    <button onclick="deletePatient(${p.id})" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-600">Delete</button>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) {
+        grid.innerHTML = `<p class="col-span-3 text-xs text-rose-500 text-center py-8">Failed to load patients: ${e.message}</p>`;
+    }
+}
+
+async function loadPatientSelector() {
+    try {
+        const res = await fetch(`${API}/patients`);
+        const patients = await res.json();
+        patientsCache = patients;
+        const sel = document.getElementById('consultPatientSelect');
+        sel.innerHTML = '<option value="">— Select Registered Patient (or Anonymous) —</option>';
+        patients.forEach(p => {
+            sel.innerHTML += `<option value="${p.id}">${esc(p.name)} (Age ${p.age || '—'})</option>`;
+        });
+    } catch (e) {}
+}
+
+function onPatientSelectChange() {
+    const id = document.getElementById('consultPatientSelect').value;
+    const badge = document.getElementById('selectedPatientBadge');
+    if (!id) {
+        badge.classList.add('hidden');
+        return;
+    }
+    const p = patientsCache.find(x => String(x.id) === String(id));
+    if (p) {
+        badge.classList.remove('hidden');
+        badge.innerHTML = `Linked: <strong>${esc(p.name)}</strong> (Allergies: <span class="text-rose-600">${esc(p.allergies || 'None')}</span>)`;
+    }
+}
+
+function openPatientModal(patient = null) {
+    document.getElementById('patientForm').reset();
+    document.getElementById('patientEditId').value = patient ? patient.id : '';
+    document.getElementById('patientModalTitle').textContent = patient ? 'Edit Patient' : 'Register New Patient';
+
+    if (patient) {
+        document.getElementById('pName').value = patient.name || '';
+        document.getElementById('pAge').value = patient.age || '';
+        document.getElementById('pGender').value = patient.gender || '';
+        document.getElementById('pPhone').value = patient.phone || '';
+        document.getElementById('pBlood').value = patient.blood_group || '';
+        document.getElementById('pAllergies').value = patient.allergies || '';
+        document.getElementById('pHistory').value = patient.medical_history || '';
+    }
+    document.getElementById('patientModal').classList.remove('hidden');
+}
+
+function closePatientModal() {
+    document.getElementById('patientModal').classList.add('hidden');
+}
+
+function editPatient(id) {
+    const p = patientsCache.find(x => x.id === id);
+    if (p) openPatientModal(p);
+}
+
+async function savePatient(e) {
+    e.preventDefault();
+    const id = document.getElementById('patientEditId').value;
+    const payload = {
+        name: document.getElementById('pName').value.trim(),
+        age: document.getElementById('pAge').value ? parseInt(document.getElementById('pAge').value) : null,
+        gender: document.getElementById('pGender').value || null,
+        phone: document.getElementById('pPhone').value.trim() || null,
+        blood_group: document.getElementById('pBlood').value.trim() || null,
+        allergies: document.getElementById('pAllergies').value.trim() || null,
+        medical_history: document.getElementById('pHistory').value.trim() || null,
+    };
+
+    const method = id ? 'PUT' : 'POST';
+    const url = id ? `${API}/patients/${id}` : `${API}/patients`;
+
+    try {
+        const res = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error('Save failed');
+        closePatientModal();
+        loadPatients();
+        loadPatientSelector();
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+
+async function deletePatient(id) {
+    if (!confirm('Are you sure you want to delete this patient record?')) return;
+    try {
+        await fetch(`${API}/patients/${id}`, { method: 'DELETE' });
+        loadPatients();
+        loadPatientSelector();
+    } catch (e) {
+        alert(e.message);
+    }
+}
+
+function searchPatients() {
+    const q = document.getElementById('patientSearchInput').value.toLowerCase();
+    const filtered = patientsCache.filter(p => (p.name || '').toLowerCase().includes(q) || (p.phone || '').includes(q));
+    const grid = document.getElementById('patientsGrid');
+    if (filtered.length === 0) {
+        grid.innerHTML = '<p class="col-span-3 text-xs text-slate-400 text-center py-8">No matching patients found.</p>';
+        return;
+    }
+    grid.innerHTML = filtered.map(p => `
+        <div class="glass-card rounded-2xl p-5 hover:border-brand-300 transition-all flex flex-col justify-between">
+            <div>
+                <div class="flex items-center justify-between mb-2">
+                    <h4 class="font-bold text-sm text-slate-900">${esc(p.name)}</h4>
+                    <span class="text-xs px-2 py-0.5 rounded bg-brand-50 text-brand-700 font-mono">ID #${p.id}</span>
+                </div>
+                <p class="text-xs text-slate-400 mb-3">${p.age || '—'} yrs • ${esc(p.gender || '—')}</p>
+                <p class="text-xs text-slate-600"><strong>Allergies:</strong> <span class="text-rose-600 font-semibold">${esc(p.allergies || 'None')}</span></p>
+            </div>
+            <div class="flex items-center justify-end gap-2 pt-4 mt-4 border-t border-slate-100">
+                <button onclick="editPatient(${p.id})" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700">Edit</button>
+                <button onclick="deletePatient(${p.id})" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 text-rose-600">Delete</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// ── PAST CONSULTATIONS & DASHBOARD ─────────────────────────────────────────
+async function loadDashboard() {
+    try {
+        const res = await fetch(`${API}/dashboard/stats`);
+        const stats = await res.json();
+        document.getElementById('statPatients').textContent = stats.total_patients || 0;
+        document.getElementById('statConsultations').textContent = stats.total_consultations || 0;
+        document.getElementById('statNotes').textContent = stats.completed_notes || 0;
+
+        const recent = stats.recent_consultations || [];
+        const box = document.getElementById('recentConsultations');
+        if (recent.length === 0) {
+            box.innerHTML = '<p class="text-xs text-slate-400 text-center py-8">No consultations yet. Launch the Live AI Scribe to start.</p>';
+            return;
+        }
+        box.innerHTML = recent.map(c => `
+            <div class="p-3 rounded-xl bg-white border border-slate-100 flex items-center justify-between text-xs hover:border-brand-200 transition-all">
+                <div class="flex items-center gap-3">
+                    <span class="w-2.5 h-2.5 rounded-full ${c.has_soap_note ? 'bg-emerald-500' : 'bg-amber-500'}"></span>
+                    <div>
+                        <strong class="text-slate-800">${esc(c.patient_name || 'Encounter Session')}</strong>
+                        <p class="text-[10px] text-slate-400">${c.session_id} • ${c.created_at ? new Date(c.created_at).toLocaleDateString() : ''}</p>
+                    </div>
+                </div>
+                <button onclick="loadPastEncounter('${c.session_id}')" class="px-3 py-1 bg-brand-50 text-brand-700 font-semibold rounded-lg hover:bg-brand-100 transition-colors">
+                    Open Encounter
+                </button>
+            </div>
+        `).join('');
+    } catch (e) {}
+}
+
+async function loadHistory() {
+    const box = document.getElementById('historyListContainer');
+    try {
+        const res = await fetch(`${API}/consultations`);
+        const list = await res.json();
+        if (list.length === 0) {
+            box.innerHTML = '<p class="text-xs text-slate-400 text-center py-8">No consultations recorded.</p>';
+            return;
+        }
+        box.innerHTML = list.map(c => `
+            <div class="p-4 rounded-xl bg-white border border-slate-200 flex items-center justify-between hover:border-brand-300 transition-all">
+                <div>
+                    <h5 class="font-bold text-xs text-slate-900">${esc(c.patient_name || 'Anonymous Encounter')}</h5>
+                    <p class="text-[11px] text-slate-400 mt-0.5">Session: ${c.session_id} • ${c.created_at ? new Date(c.created_at).toLocaleString() : ''}</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="loadPastEncounter('${c.session_id}')" class="px-3 py-1.5 bg-brand-50 hover:bg-brand-100 text-brand-700 font-semibold text-xs rounded-lg">View Note</button>
+                    <button onclick="deleteConsultationRecord(${c.id})" class="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-semibold text-xs rounded-lg">Delete</button>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) {
+        box.innerHTML = `<p class="text-xs text-rose-500 text-center py-8">${e.message}</p>`;
+    }
+}
+
+async function loadPastEncounter(sessionId) {
+    try {
+        const res = await fetch(`${API}/consult/${sessionId}/note`);
+        const data = await res.json();
+        currentSessionId = sessionId;
+        currentClinicalPackage = { session_id: sessionId, ...data };
+        navigate('consultation');
+        renderClinicalPackage(currentClinicalPackage, "0.1");
+    } catch (e) {
+        alert('Failed to load consultation: ' + e.message);
+    }
+}
+
+async function deleteConsultationRecord(id) {
+    if (!confirm('Delete this consultation?')) return;
+    try {
+        await fetch(`${API}/consultations/${id}`, { method: 'DELETE' });
+        loadHistory();
+    } catch (e) {}
+}
+
+async function loadAnalytics() {
+    try {
+        const [pRes, cRes] = await Promise.all([fetch(`${API}/patients`), fetch(`${API}/consultations`)]);
+        const patients = await pRes.json();
+        const consults = await cRes.json();
+
+        // Render charts
+        renderAnalyticsChart('chartPatients', 'line', {
+            labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
+            datasets: [{
+                label: 'Registered Patients',
+                data: [Math.max(1, patients.length - 3), Math.max(1, patients.length - 2), Math.max(1, patients.length - 1), patients.length],
+                borderColor: '#6366f1',
+                backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                fill: true,
+                tension: 0.3
+            }]
+        });
+
+        renderAnalyticsChart('chartStatus', 'doughnut', {
+            labels: ['SOAP Note Completed', 'Pending Review'],
+            datasets: [{
+                data: [consults.filter(c => c.has_soap_note).length, consults.filter(c => !c.has_soap_note).length],
+                backgroundColor: ['#059669', '#f59e0b'],
+            }]
+        });
+    } catch (e) {}
+}
+
+function renderAnalyticsChart(id, type, data) {
+    if (chartInstances[id]) chartInstances[id].destroy();
+    const ctx = document.getElementById(id).getContext('2d');
+    chartInstances[id] = new Chart(ctx, {
+        type,
+        data,
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { font: { family: 'Inter', size: 11 } } } }
+        }
+    });
+}
+
+// ── FILE UPLOAD HANDLING ──────────────────────────────────────────────────
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('audioFileInput');
+let chosenAudioFile = null;
+
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) handleFilePick(e.target.files[0]);
+});
+
+function handleFilePick(file) {
+    chosenAudioFile = file;
+    document.getElementById('fileUploadInfo').classList.remove('hidden');
+    document.getElementById('uploadFileName').textContent = file.name;
+    document.getElementById('uploadFileSize').textContent = `${(file.size / 1048576).toFixed(2)} MB`;
+}
+
+async function processUploadedFile() {
+    if (!chosenAudioFile) return;
+    const btn = document.getElementById('btnProcessUpload');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="animate-spin">🌀</span> Transcribing (Whisper Base)...';
+
+    const patientId = document.getElementById('consultPatientSelect').value || '';
+    const modelSize = document.getElementById('settingWhisperModel')?.value || 'base';
+
+    const fd = new FormData();
+    fd.append('file', chosenAudioFile);
+
+    try {
+        const start = performance.now();
+        const res = await fetch(`${API}/consult/upload?fast_mode=true&model_size=${modelSize}${patientId ? '&patient_id=' + patientId : ''}`, {
+            method: 'POST',
+            body: fd,
+        });
+        if (!res.ok) throw new Error('Upload analysis failed');
+        const data = await res.json();
+        const durationSec = ((performance.now() - start) / 1000).toFixed(1);
+
+        currentSessionId = data.session_id;
+        currentClinicalPackage = data;
+        renderClinicalPackage(data, durationSec);
+
+    } catch (e) {
+        alert(e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '⚡ Transcribe & Generate Notes';
+    }
+}
+
+// ── SETTINGS & API KEYS ──────────────────────────────────────────────────
+async function loadSettingsStatus() {
+    try {
+        const res = await fetch(`${API}/settings/status`);
+        const data = await res.json();
+        const badge = document.getElementById('geminiStatusBadge');
+        if (data.gemini_configured) {
+            badge.className = 'text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200';
+            badge.textContent = '🟢 Gemini 2.0 Active';
+        } else {
+            badge.className = 'text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200';
+            badge.textContent = '⚡ Fast Clinical NLP Active';
+        }
+    } catch (e) {}
+}
+
+async function saveApiKeys(e) {
+    e.preventDefault();
+    const gKey = document.getElementById('inputGeminiKey').value.trim();
+    const hf = document.getElementById('inputHfToken').value.trim();
+    const msg = document.getElementById('apiKeySaveMsg');
+
+    try {
+        const res = await fetch(`${API}/settings/api-keys`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                gemini_api_key: gKey || undefined,
+                hf_token: hf || undefined,
+            })
+        });
+        if (!res.ok) throw new Error('Failed to update keys');
+        msg.classList.remove('hidden');
+        setTimeout(() => msg.classList.add('hidden'), 4000);
+        loadSettingsStatus();
+        alert('✓ API keys updated successfully! Gemini 2.0 Flash is ready.');
+    } catch (err) {
+        alert('Error saving keys: ' + err.message);
+    }
+}
+
+// ── UTILITIES ─────────────────────────────────────────────────────────────
+function esc(t) {
+    if (!t) return '';
+    const div = document.createElement('div');
+    div.textContent = t;
+    return div.innerHTML;
+}
+
+// Init
+loadDashboard();
+loadSettingsStatus();
+</script>
+
+</body>
+</html>
